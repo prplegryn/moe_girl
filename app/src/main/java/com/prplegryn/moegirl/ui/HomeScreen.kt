@@ -31,17 +31,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ExitToApp
+import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
+import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.ExitToApp
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.rounded.Login
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -253,7 +253,7 @@ private fun IdentityHeader(
             )
         }
         Icon(
-            imageVector = if (state.session.isLoggedIn) Icons.Rounded.Settings else Icons.Rounded.Login,
+            imageVector = if (state.session.isLoggedIn) Icons.Rounded.Settings else Icons.AutoMirrored.Rounded.Login,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -471,7 +471,7 @@ private fun FileIcon(file: CloudFile) {
     val icon: ImageVector = when {
         file.isDirectory -> Icons.Rounded.Folder
         file.isVideo -> Icons.Rounded.Movie
-        else -> Icons.Rounded.InsertDriveFile
+        else -> Icons.AutoMirrored.Rounded.InsertDriveFile
     }
     val tint = when {
         file.isDirectory -> MaterialTheme.colorScheme.secondary
@@ -719,7 +719,7 @@ private fun ManageSheet(
         SheetAction(Icons.Rounded.Home, "恢复系统根目录", onResetRoot)
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         SheetAction(
-            icon = Icons.Rounded.ExitToApp,
+            icon = Icons.AutoMirrored.Rounded.ExitToApp,
             text = "退出登录",
             onClick = onLogout,
             color = MaterialTheme.colorScheme.tertiary,
