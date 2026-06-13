@@ -139,19 +139,32 @@ class GuangyaApi(
         page: Int = 0,
         pageSize: Int = 200,
     ): FilePage {
-        val result = post(
+        val body = buildJsonObject {
+            put("parentId", parentId.orEmpty())
+            put("page", page)
+            put("pageSize", pageSize)
+            put("orderBy", 0)
+            put("sortType", 0)
+            put("needPlayRecord", true)
+        }
+        val primary = post(
             url = "$API_BASE/userres/v1/file/get_file_list",
             headers = apiHeaders(deviceId, accessToken),
-            body = buildJsonObject {
-                put("parentId", parentId.orEmpty())
-                put("page", page)
-                put("pageSize", pageSize)
-                put("orderBy", 0)
-                put("sortType", 0)
-                put("needPlayRecord", true)
-            },
+            body = body,
         )
-        val files = result.extractFileItems()
+        val primaryItems = primary.extractFileItems()
+        val rawItems = if (primaryItems.isNotEmpty()) {
+            primaryItems
+        } else {
+            runCatching {
+                post(
+                    url = "$API_BASE/nd.bizuserres.s/v1/file/get_file_list",
+                    headers = apiHeaders(deviceId, accessToken),
+                    body = body,
+                ).extractFileItems()
+            }.getOrDefault(primaryItems)
+        }
+        val files = rawItems
             .mapNotNull { it.toCloudFile(parentId) }
             .distinctBy { it.id }
             .sortedWith(compareBy<CloudFile> { !it.isDirectory }.thenBy { it.name.lowercase(Locale.ROOT) })
@@ -278,50 +291,6 @@ class GuangyaApi(
         return null
     }
 
-    private fun JsonElement.findInt(vararg names: String): Int? {
-        when (this) {
-            is JsonObject -> {
-                names.forEach { name ->
-                    val value = this[name]
-                    if (value is JsonPrimitive) {
-                        value.intOrNull?.let { return it }
-                        value.contentOrNull?.toIntOrNull()?.let { return it }
-                    }
-                }
-                values.forEach { value ->
-                    value.findInt(*names)?.let { return it }
-                }
-            }
-            is JsonArray -> forEach { value ->
-                value.findInt(*names)?.let { return it }
-            }
-            else -> Unit
-        }
-        return null
-    }
-
-    private fun JsonElement.findBoolean(vararg names: String): Boolean? {
-        when (this) {
-            is JsonObject -> {
-                names.forEach { name ->
-                    val value = this[name]
-                    if (value is JsonPrimitive) {
-                        value.booleanOrNull?.let { return it }
-                        value.contentOrNull?.toBooleanStrictOrNull()?.let { return it }
-                    }
-                }
-                values.forEach { value ->
-                    value.findBoolean(*names)?.let { return it }
-                }
-            }
-            is JsonArray -> forEach { value ->
-                value.findBoolean(*names)?.let { return it }
-            }
-            else -> Unit
-        }
-        return null
-    }
-
     private fun JsonObject.extractFileItems(): List<JsonObject> {
         val arrays = mutableListOf<JsonArray>()
         val likelyNames = setOf("list", "items", "records", "files", "fileList", "dataList", "rows")
@@ -361,34 +330,246 @@ class GuangyaApi(
     }
 
     private fun JsonObject.toCloudFile(parentId: String?): CloudFile? {
-        val name = findString("name", "fileName", "filename", "dirName", "title") ?: return null
-        val id = findString("fileId", "file_id", "id", "fid", "resId") ?: return null
-        val typeName = findString("fileTypeName", "typeName", "categoryName", "kind")
-        val fileType = findInt("fileType", "type", "category")
-        val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val name = directString(
+            "name",
+            "fileName",
+            "file_name",
+            "filename",
+            "resName",
+            "resourceName",
+            "title",
+            "displayName",
+            "display_name",
+            "originalName",
+            "original_name",
+            "fileFullName",
+            "fullName",
+            "dirName",
+            "dir_name",
+            "folderName",
+            "folder_name",
+        ) ?: return null
+        val fileId = directString(
+            "fileId",
+            "file_id",
+            "id",
+            "fid",
+            "resourceId",
+            "resId",
+            "bizId",
+            "objId",
+            "shareFileId",
+            "share_file_id",
+            "dirId",
+            "dir_id",
+            "folderId",
+            "folder_id",
+        ) ?: return null
+        val directoryId = directString(
+            "dirId",
+            "dir_id",
+            "folderId",
+            "folder_id",
+            "fileId",
+            "file_id",
+            "id",
+            "resourceId",
+            "resId",
+            "bizId",
+            "objId",
+        ) ?: fileId
+        val typeName = directString("fileTypeName", "typeName", "categoryName", "kind")
+        val fileType = directInt("fileType", "file_type", "type", "category")
+        val extension = directString("ext", "extension", "suffix")
+            ?.trim()
+            ?.removePrefix(".")
+            ?.lowercase(Locale.ROOT)
+            ?: name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val knownFileExtensions = setOf(
+            "mp4",
+            "mkv",
+            "mov",
+            "m4v",
+            "webm",
+            "avi",
+            "flv",
+            "wmv",
+            "ts",
+            "m2ts",
+            "mp3",
+            "flac",
+            "aac",
+            "wav",
+            "m4a",
+            "ogg",
+            "jpg",
+            "jpeg",
+            "png",
+            "gif",
+            "webp",
+            "bmp",
+            "heic",
+            "zip",
+            "rar",
+            "7z",
+            "tar",
+            "gz",
+            "bz2",
+            "pdf",
+            "doc",
+            "docx",
+            "xls",
+            "xlsx",
+            "ppt",
+            "pptx",
+            "txt",
+            "srt",
+            "ass",
+            "torrent",
+        )
+        val mime = directString("mime", "mimeType", "contentType")
+        val explicitDirectory = directBooleanish(
+            "isDir",
+            "is_dir",
+            "isDirectory",
+            "isFolder",
+            "is_folder",
+            "folder",
+            "directory",
+            "dir",
+            "domIsDir",
+        )
+        val dirType = directInt("dirType", "dir_type")
+        val typeHints = listOfNotNull(
+            directString("itemType", "item_type"),
+            directString("nodeType", "node_type"),
+            directString("resourceType", "resource_type"),
+            directString("resType", "res_type"),
+            directString("fileType", "file_type"),
+            directString("type"),
+            directString("kind"),
+            directString("bizType", "biz_type"),
+            typeName,
+        ).map { it.lowercase(Locale.ROOT) }
+        val hintedDirectory = typeHints.any {
+            it.contains("dir") || it.contains("folder") || it.contains("catalog") ||
+                it.contains("目录") || it.contains("文件夹")
+        }
+        val hintedFile = typeHints.any {
+            it.contains("file") || it.contains("video") || it.contains("image") ||
+                it.contains("audio") || it.contains("doc") || it.contains("torrent")
+        }
+        val hasDirectoryShape = hasMeaningfulDirectoryValue(
+            "dirName",
+            "dir_name",
+            "folderName",
+            "folder_name",
+            "folderId",
+            "folder_id",
+            "dirId",
+            "dir_id",
+        ) || hasDirectoryCountHint(
+            "childCount",
+            "childrenCount",
+            "children_count",
+            "dirCount",
+            "dir_count",
+            "folderCount",
+            "folder_count",
+            "subCount",
+            "sub_count",
+        )
+        val isDirectory = when {
+            explicitDirectory != null -> explicitDirectory
+            extension in knownFileExtensions -> false
+            dirType != null -> dirType > 0
+            hasDirectoryShape -> true
+            hintedDirectory -> true
+            hintedFile -> false
+            mime == "inode/directory" -> true
+            else -> false
+        }
         val videoExtensions = setOf("mp4", "mkv", "mov", "m4v", "webm", "avi", "flv", "wmv", "ts", "m2ts")
-        val isVideo = fileType == 2 ||
-            extension in videoExtensions ||
-            findString("mime", "mimeType", "contentType")?.startsWith("video/", ignoreCase = true) == true
-        val explicitDirectory = findBoolean("isDir", "isDirectory", "dir", "folder")
-        val isDirectory = explicitDirectory ?: (
-            !isVideo && (
-                fileType == 0 ||
-                    typeName?.contains("文件夹") == true ||
-                    typeName?.contains("folder", ignoreCase = true) == true ||
-                    findString("mime", "mimeType") == "inode/directory"
-                )
+        val isVideo = !isDirectory && (
+            fileType == 2 ||
+                extension in videoExtensions ||
+                mime?.startsWith("video/", ignoreCase = true) == true
             )
         return CloudFile(
-            id = id,
+            id = if (isDirectory) directoryId else fileId,
             name = name,
             isDirectory = isDirectory,
             isVideo = isVideo,
-            sizeBytes = findLong("size", "fileSize", "bytes", "length"),
-            updatedAt = findString("updatedAt", "updateTime", "updated_time", "modifyTime", "createdAt"),
-            parentId = findString("parentId", "parent_id") ?: parentId,
+            sizeBytes = directLong("size", "fileSize", "file_size", "resourceSize", "resource_size", "resSize", "res_size", "bytes", "length"),
+            updatedAt = directString("updatedAt", "updateTime", "updated_time", "modifyTime", "createdAt"),
+            parentId = directString("parentId", "parent_id", "pid", "parentFileId", "parent_file_id") ?: parentId,
             fileType = fileType,
         )
+    }
+
+    private fun JsonObject.directString(vararg names: String): String? {
+        names.forEach { name ->
+            val value = this[name]
+            if (value is JsonPrimitive) {
+                value.contentOrNull?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun JsonObject.directLong(vararg names: String): Long? {
+        names.forEach { name ->
+            val value = this[name]
+            if (value is JsonPrimitive) {
+                value.longOrNull?.let { return it }
+                value.contentOrNull?.toLongOrNull()?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun JsonObject.directInt(vararg names: String): Int? {
+        names.forEach { name ->
+            val value = this[name]
+            if (value is JsonPrimitive) {
+                value.intOrNull?.let { return it }
+                value.contentOrNull?.toIntOrNull()?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun JsonObject.directBooleanish(vararg names: String): Boolean? {
+        names.forEach { name ->
+            val value = this[name]
+            if (value is JsonPrimitive) {
+                value.booleanOrNull?.let { return it }
+                value.intOrNull?.let { return it != 0 }
+                when (value.contentOrNull?.trim()?.lowercase(Locale.ROOT)) {
+                    "true", "1", "yes", "y" -> return true
+                    "false", "0", "no", "n" -> return false
+                }
+            }
+        }
+        return null
+    }
+
+    private fun JsonObject.hasMeaningfulDirectoryValue(vararg names: String): Boolean {
+        names.forEach { name ->
+            val value = this[name]
+            if (value is JsonPrimitive) {
+                value.contentOrNull
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() && it != "0" && !it.equals("null", ignoreCase = true) }
+                    ?.let { return true }
+                value.longOrNull?.takeIf { it > 0L }?.let { return true }
+            }
+        }
+        return false
+    }
+
+    private fun JsonObject.hasDirectoryCountHint(vararg names: String): Boolean {
+        return directLong(*names)?.let { it > 0L } == true
     }
 
     private fun randomHex(bytes: Int): String {
@@ -417,4 +598,3 @@ class GuangyaApi(
         }
     }
 }
-

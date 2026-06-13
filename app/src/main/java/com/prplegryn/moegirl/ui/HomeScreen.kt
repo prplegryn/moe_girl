@@ -54,7 +54,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -126,47 +125,39 @@ fun HomeScreen(
             maxWidth < 700.dp -> 32.dp
             else -> 48.dp
         }
-        Surface(
+        Column(
             modifier = Modifier
                 .padding(pagePadding)
                 .widthIn(max = 620.dp)
                 .fillMaxWidth()
-                .fillMaxHeight(),
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
-            shadowElevation = 8.dp,
+                .fillMaxHeight()
+                .padding(horizontal = 22.dp, vertical = 20.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 22.dp, vertical = 20.dp),
-            ) {
-                IdentityHeader(
-                    state = state,
-                    onClick = {
-                        onHeaderClick()
-                        sheetMode = if (state.session.isLoggedIn) SheetMode.Manage else SheetMode.Login
-                    },
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-                PathBar(
-                    pathText = state.path.joinToString(" / ") { it.name },
-                    canGoUp = canGoUp,
-                    isRefreshing = state.isRefreshing,
-                    onGoUp = onGoUp,
-                    onRefresh = onRefresh,
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                FileContent(
-                    state = state,
-                    onOpenFolder = onOpenFolder,
-                    onVideoClick = onVideoClick,
-                    onRefresh = onRefresh,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            Spacer(modifier = Modifier.height(48.dp))
+            IdentityHeader(
+                state = state,
+                onClick = {
+                    onHeaderClick()
+                    sheetMode = if (state.session.isLoggedIn) SheetMode.Manage else SheetMode.Login
+                },
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            PathBar(
+                pathText = state.path.joinToString(" / ") { it.name },
+                canGoUp = canGoUp,
+                isRefreshing = state.isRefreshing,
+                onGoUp = onGoUp,
+                onRefresh = onRefresh,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            FileContent(
+                state = state,
+                onOpenFolder = onOpenFolder,
+                onVideoClick = onVideoClick,
+                onRefresh = onRefresh,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 
