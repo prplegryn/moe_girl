@@ -50,7 +50,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -229,9 +228,8 @@ private fun ModernVideoPlayer(
                                 seekPreviewMs = player.currentPosition.coerceAtLeast(0L)
                             }
                         },
-                        onDrag = { change, dragAmount ->
+                        onDrag = { _, dragAmount ->
                             if (durationMs > 0L && seekPreviewMs != null) {
-                                change.consume()
                                 val deltaMs = (dragAmount.x * 420f).toLong()
                                 seekPreviewMs = ((seekPreviewMs ?: positionMs) + deltaMs).coerceIn(0L, durationMs)
                             }
