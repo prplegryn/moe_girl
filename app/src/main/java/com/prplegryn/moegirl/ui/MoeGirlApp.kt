@@ -88,9 +88,12 @@ fun MoeGirlApp(
                     file = file,
                     state = state.player,
                     onLoad = { viewModel.loadPlayer(file) },
+                    onReload = { viewModel.loadPlayer(file, force = true) },
                     onSavePosition = { position -> viewModel.savePlayback(file.id, position) },
-                    onBack = { navController.popBackStack() },
-                    onClear = viewModel::clearPlayer,
+                    onBack = {
+                        navController.popBackStack()
+                        viewModel.clearPlayer()
+                    },
                 )
             }
         }

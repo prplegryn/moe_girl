@@ -253,8 +253,12 @@ class MoeGirlViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun loadPlayer(file: CloudFile) {
+    fun loadPlayer(file: CloudFile, force: Boolean = false) {
         viewModelScope.launch {
+            val current = _uiState.value
+            if (!force && current.selectedVideo?.id == file.id && !current.player.downloadUrl.isNullOrBlank()) {
+                return@launch
+            }
             _uiState.update { it.copy(player = PlayerUiState(isLoading = true), selectedVideo = file) }
             runCatching {
                 val session = activeSession()
@@ -277,6 +281,13 @@ class MoeGirlViewModel(application: Application) : AndroidViewModel(application)
 
     fun savePlayback(fileId: String, positionMs: Long) {
         viewModelScope.launch {
+            _uiState.update { state ->
+                if (state.selectedVideo?.id == fileId) {
+                    state.copy(player = state.player.copy(savedPositionMs = positionMs))
+                } else {
+                    state
+                }
+            }
             store.savePlaybackPosition(fileId, positionMs)
         }
     }
