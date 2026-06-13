@@ -179,8 +179,28 @@ class GuangyaApi(
                 put("fileId", fileId)
             },
         )
-        return result.findString("downloadUrl", "download_url", "url", "link", "resUrl", "sourceUrl")
-            ?: throw IOException("下载接口未返回播放地址")
+        return result.findLikelyUrl(
+            "signedURL",
+            "signedUrl",
+            "signed_url",
+            "downloadUrl",
+            "downloadURL",
+            "download_url",
+            "url",
+            "link",
+            "href",
+            "resUrl",
+            "res_url",
+            "sourceUrl",
+            "source_url",
+            "fileUrl",
+            "file_url",
+            "playUrl",
+            "play_url",
+            "videoUrl",
+            "video_url",
+            "data",
+        ) ?: throw IOException("下载接口未返回播放地址，响应字段：${result.keys.joinToString(", ").take(120)}")
     }
 
     private suspend fun post(
@@ -289,6 +309,49 @@ class GuangyaApi(
             else -> Unit
         }
         return null
+    }
+
+    private fun JsonElement.findLikelyUrl(vararg preferredNames: String): String? {
+        when (this) {
+            is JsonObject -> {
+                preferredNames.forEach { name ->
+                    this[name]?.findFirstHttpUrl()?.let { return it }
+                }
+                for ((key, value) in this) {
+                    if (key.contains("url", ignoreCase = true) || key.contains("link", ignoreCase = true)) {
+                        value.findFirstHttpUrl()?.let { return it }
+                    }
+                }
+                values.forEach { value ->
+                    value.findLikelyUrl(*preferredNames)?.let { return it }
+                }
+            }
+            is JsonArray -> forEach { value ->
+                value.findLikelyUrl(*preferredNames)?.let { return it }
+            }
+            is JsonPrimitive -> contentOrNull?.takeIf { it.isHttpUrl() }?.let { return it }
+            else -> Unit
+        }
+        return null
+    }
+
+    private fun JsonElement.findFirstHttpUrl(): String? {
+        when (this) {
+            is JsonPrimitive -> return contentOrNull?.takeIf { it.isHttpUrl() }
+            is JsonObject -> values.forEach { value ->
+                value.findFirstHttpUrl()?.let { return it }
+            }
+            is JsonArray -> forEach { value ->
+                value.findFirstHttpUrl()?.let { return it }
+            }
+            else -> Unit
+        }
+        return null
+    }
+
+    private fun String.isHttpUrl(): Boolean {
+        val text = trim()
+        return text.startsWith("https://", ignoreCase = true) || text.startsWith("http://", ignoreCase = true)
     }
 
     private fun JsonObject.extractFileItems(): List<JsonObject> {
